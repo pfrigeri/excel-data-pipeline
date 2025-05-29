@@ -8,6 +8,7 @@ def connectDB():
         print(f"Erro ao conectar o banco {error}")
         pass
 
+
 def readFileCSV(path):
     file = open(path,"r", encoding="utf-8")
     file.readline() #Pula o cabeçalho
@@ -20,6 +21,7 @@ def readFileCSV(path):
     file.close()
     return dados
 
+
 def clearDataRepress(oldList):
     newList = []
     for line in oldList:
@@ -30,6 +32,8 @@ def clearDataRepress(oldList):
         comissaoBase = round(float(line[3].replace(",", ".")), 4)
         newList.append([codRepress, tipoPess, nomeFan, comissaoBase])
     return newList
+
+
 def to_float(value):
     try:
         if value is None:
@@ -75,6 +79,43 @@ def clearDataProdutos(oldList):
             continue
     return newList
 
+def clearDataPedidos(oldList):
+    newList = []
+    for line in oldList:
+        try:
+            numPed = to_int(line[0])
+            dataPed = line[1]
+            horaPed = line[2]
+            codClien = to_int(line[3])
+            es = line[4]
+            finaliDnfe = to_int(line[5])
+            situacao = to_int(line[6])
+            peso = to_float(line[7])
+            prazoPgto = to_int(line[8])
+            valorProds = to_float(line[9])
+            valorDesc = to_float(line[10])
+            valor = to_float(line[11])
+            valbaSeicms = to_float(line[12])
+            valimcms = to_float(line[13])
+            comissao = to_float(line[14])
+
+            newList.append([
+                numPed, dataPed, horaPed, codClien, es,
+                finaliDnfe, situacao, peso, prazoPgto,
+                valorProds, valorDesc, valor,
+                valbaSeicms, valimcms, comissao
+            ])
+        except Exception as e:
+            print(f"[Erro ao processar linha do pedido] {line}")
+            print(f" -> Detalhes: {e}")
+            continue
+    return newList
+
+def loadPedidosData():
+    listas = readFileCSV("TabelasCSV/Pedidos.csv")
+    return clearDataPedidos(listas)
+
+
 def clearDataFornClient(oldList):
     newlist = []
     for line in oldList:
@@ -95,21 +136,31 @@ def clearDataFornClient(oldList):
         ])
     return newlist
 
+def clearDataItensPedidos(oldList):
+    newList = []
+    for line in oldList:
+        try:
+            numPed = to_int(line[0])
+            numItem = to_int(line[1])
+            codProduto = to_int(line[2])
+            qtde = to_float(line[3])
+            valUnit = to_float(line[4])
+            unid = line[5].strip() if line[5] else None
+            aliqICMS = to_float(line[6])
+            comissao = to_float(line[7])
+            stICMS = line[8].strip() if line[8] else None
+            cfop = to_int(line[9])
+            reducBaseICMS = to_float(line[10])
 
-def dropTable(tableName):
-    sql = f"DROP TABLE IF EXISTS {tableName}"
-    table = tableName
-    try:
-        conn = connectDB()
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        conn.commit()
-        print("Tabela deletada com sucesso!!")
-    except db.Error as error:
-        print(f"Erro ao deletar tabela {error}")
-    finally:
-        cursor.close()
-        conn.close()
+            newList.append([
+                numPed, numItem, codProduto, qtde, valUnit, unid,
+                aliqICMS, comissao, stICMS, cfop, reducBaseICMS
+            ])
+        except Exception as e:
+            print(f"Erro ao tratar linha do item: {line}")
+            print(f" -> {e}")
+            continue
+    return newList
 
 #Dados tratados
     #Criar um load geral de tabelas
@@ -125,9 +176,14 @@ def loadProdutosData():
     list = readFileCSV("TabelasCSV/Produtos.csv")
     return clearDataProdutos(list)
 
-def loadFornClient():
+def loadFornClientData():
     lists = readFileCSV("TabelasCSV/FornClien.csv")
     return clearDataFornClient(lists)
+
+def loadItensPedidosData():
+        list = readFileCSV("TabelasCSV/PedidosItem.csv")
+        return clearDataItensPedidos(list)
+
 
 def showData(lists):
     for value in lists:
@@ -200,7 +256,7 @@ def createTableFornClient():
 def createTableProdutos():
     sql = """
         CREATE TABLE IF NOT EXISTS Produtos (
-            CodProdutos INTEGER PRIMARY KEY AUTOINCREMENT,
+            CodProd INTEGER PRIMARY KEY AUTOINCREMENT,
             NomeProduto text,
             CodForne TEXT,
             Unidade INTEGER,
@@ -224,6 +280,70 @@ def createTableProdutos():
     finally:
         cursor.close()
         conn.close()
+
+
+def createTablePedidos():
+
+    sql = """
+            CREATE TABLE Pedidos (
+                    NumPed INTEGER PRIMARY KEY AUTOINCREMENT,
+                    DataPed TEXT,
+                    HoraPed TEXT,
+                    CodClien INTEGER,
+                    ES TEXT,
+                    FinaliDnfe INTEGER,
+                    Situacao INTEGER,
+                    Peso REAL,
+                    PrazoPgto INTEGER,
+                    ValorProds REAL,
+                    ValorDesc REAL,
+                    Valor REAL,
+                    ValbaSeicms REAL,
+                    Valimcms REAL,
+                    Comissao REAL
+                );
+            """
+    try:
+        conn = connectDB()
+        cursor = connectDB().cursor()
+        cursor.execute(sql)
+    except db.Error as error:
+        print(f"Erro ao criar a tabela Pedidos {error}")
+    finally:
+        cursor.close()
+        conn.close()
+
+def createTableItensPedidos():
+    sql = """
+        CREATE TABLE IF NOT EXISTS ItensPedidos (
+            NumPed INTEGER,
+            NumItem INTEGER,
+            CodProd INTEGER,
+            Qtde REAL,
+            ValUnit REAL,
+            Unid TEXT,
+            AliqICMS REAL,
+            Comissao REAL,
+            StICMS TEXT,
+            CFOP INTEGER,
+            ReducBaseICMS REAL,
+            PRIMARY KEY (NumPed, NumItem),
+            FOREIGN KEY (NumPed) REFERENCES Pedidos(NumPed),
+            FOREIGN KEY (CodProd) REFERENCES Produtos(CodProd)
+        );
+    """
+    try:
+        conn = connectDB()
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        print("Tabela ItensPedidos criada com sucesso!")
+    except db.Error as error:
+        print(f"Erro ao criar a tabela ItensPedidos: {error}")
+    finally:
+        cursor.close()
+        conn.close()
+
+
 
 def findAllRepress():
     sql = "SELECT * FROM Repress"
@@ -280,7 +400,7 @@ def insertProdutos(listOfProducts):
     # Inserção dos dados dos produtos no banco de dados.
     sql = """
         INSERT INTO Produtos (
-            CodProdutos, NomeProduto, CodForne, Unidade, AliQICMS,
+            CodProd, NomeProduto, CodForne, Unidade, AliQICMS,
             ValCusto, ValVenda, Qtdemin, QtdeEstq, Grupo,
             ClassEstq, Comissao, PesoBruto
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -296,20 +416,65 @@ def insertProdutos(listOfProducts):
     finally:
         cursor.close()
         conn.close()
-        
+
+
+def insertPedidos(listOfPedidos):
+    sql = ("INSERT INTO Pedidos (NumPed, DataPed, HoraPed, CodClien, ES, FinaliDnfe, situacao, Peso, PrazoPgto, ValorProds, ValorDesc, Valor, ValbaSeicms, Valimcms, Comissao) "
+           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ? ,?, ?, ?, ?, ?)")
+    try:
+        conn = connectDB()
+        cursor = conn.cursor()
+        cursor.executemany(sql, listOfPedidos)
+        conn.commit()
+        print("Pedidos inseridos com sucesso!")
+    except db.Error as error:
+        print(f"Erro ao inserir na tabela Pedidos {error}")
+    finally:
+        cursor.close()
+        conn.close()
+def insertItensPedidos(listOFItens):
+    sql = """
+        INSERT INTO ItensPedidos (
+            NumPed, NumItem, CodProduto, Qtde, ValUnit,
+            Unid, AliqICMS, Comissao, StICMS, CFOP, ReducBaseICMS
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """
+    try:
+        conn = connectDB()
+        cursor = conn.cursor()
+        cursor.executemany(sql, listOFItens)
+        conn.commit()
+        print("ItensPedidos inseridos com sucesso!")
+    except db.Error as error:
+        print(f"Erro ao inserir dados na tabela ItensPedidos: {error}")
+    finally:
+        cursor.close()
+        conn.close()
+
 def main():
-    
-    # createTableRepress()
-    # insertRepress(loadRepressData())
-    # showData(findAllRepress())
-    
-    # dropTable("FornClient")
-    # createTableFornClient()
-    # # insertFornClient(loadFornClient())
-    dropTable("Produtos")
+    # Criação das tabelas
+    createTableRepress()
+    createTableFornClient()
     createTableProdutos()
-    insertProdutos(loadProdutosData())
+    createTablePedidos()
+    createTableItensPedidos()
+
+    # Leitura e inserção dos dados
+    repressData = loadRepressData()
+    insertRepress(repressData)
+
+    fornClientData = loadFornClientData()
+    insertFornClient(fornClientData)
+
+    produtosData = loadProdutosData()
+    insertProdutos(produtosData)
+
+    pedidosData = loadPedidosData()
+    insertPedidos(pedidosData)
+
+    itensPedidosData = loadItensPedidosData()
+    insertItensPedidos(itensPedidosData)
+
 
 if __name__ == "__main__":
     main()
-
